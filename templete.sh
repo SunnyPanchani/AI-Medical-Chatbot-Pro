@@ -1,6 +1,7 @@
 # creating project directory structure
 mkdir -p src
 mkdir -p research
+mkdir -p data
 
 # Creating file
 touch src/__init__.py
