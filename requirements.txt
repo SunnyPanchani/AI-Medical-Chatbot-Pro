@@ -1,9 +1,34 @@
-langchain==0.3.26
+# Locked versions for long-term stability
+# Medical Chatbot with Groq - Python 3.11
+# These versions are tested and work together
+
+# Core LangChain - Version 1.0 (latest stable)
+langchain==1.0.8
+langchain-community==0.4.1
+langchain-core==1.0.7
+
+# Text Splitters (standalone package in 1.0+)
+langchain-text-splitters==1.0.0
+
+# Web Framework
 flask==3.1.1
+
+# Document Processing & Embeddings
 sentence-transformers==3.2.1
 pypdf==5.6.1
+
+# Environment Variables
 python-dotenv==1.0.1
-langchain-pinecone==0.2.8
-langchain-openai==0.3.24
-langchain-community==0.3.26
+
+# Vector Database
+pinecone-client==4.1.0
+langchain-pinecone==0.2.13
+
+# LLM Provider - Groq (Free)
+langchain-groq==1.0.1
+
+# Optional: For OpenRouter support
+langchain-openai==1.0.3
+
+# Install project as editable package
 -e .
