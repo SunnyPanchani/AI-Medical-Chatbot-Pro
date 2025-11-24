@@ -19,5 +19,6 @@ touch store_index.py
 touch test_chatbot.py
 touch templates/index.html
 touch static/style.css
+touch streamlit_app.py
 
 echo "Project structure created."

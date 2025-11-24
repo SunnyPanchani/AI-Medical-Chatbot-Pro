@@ -1,9 +1,9 @@
 """
 Medical Chatbot Flask Application
-Optimized with enhanced RAG system
+With Streaming Responses
 """
 
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response, stream_with_context
 from src.helper import (
     download_embeddings,
     load_vector_store,
@@ -11,6 +11,7 @@ from src.helper import (
     create_rag_chain
 )
 import os
+import json
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -21,10 +22,11 @@ app = Flask(__name__)
 # Global variables for chatbot components
 rag_chain = None
 retriever = None
+chatModel = None
 
 def initialize_chatbot():
     """Initialize the chatbot on startup"""
-    global rag_chain, retriever
+    global rag_chain, retriever, chatModel
     
     print("\n" + "="*80)
     print("INITIALIZING MEDICAL CHATBOT")
@@ -95,7 +97,7 @@ def health():
 
 @app.route('/chat', methods=['POST'])
 def chat():
-    """Chat endpoint - answer medical questions"""
+    """Chat endpoint - answer medical questions with streaming"""
     
     if not chatbot_ready or not rag_chain:
         return jsonify({
@@ -111,7 +113,7 @@ def chat():
         if not question:
             return jsonify({'error': 'No question provided'}), 400
         
-        # Get answer from RAG chain
+        # Get answer from RAG chain (non-streaming for now)
         print(f"\n📋 Question: {question}")
         answer = rag_chain.invoke(question)
         
@@ -141,12 +143,14 @@ def chat():
             'error': f'Error processing question: {str(e)}'
         }), 500
 
-@app.route('/quick-chat', methods=['POST'])
-def quick_chat():
-    """Quick chat endpoint - brief answers"""
+@app.route('/chat-stream', methods=['POST'])
+def chat_stream():
+    """Streaming chat endpoint - shows answer as it's generated"""
     
-    if not chatbot_ready or not rag_chain:
-        return jsonify({'error': 'Chatbot not ready'}), 500
+    if not chatbot_ready or not rag_chain or not chatModel:
+        return jsonify({
+            'error': 'Chatbot not initialized'
+        }), 500
     
     try:
         data = request.get_json()
@@ -155,33 +159,74 @@ def quick_chat():
         if not question:
             return jsonify({'error': 'No question provided'}), 400
         
-        # Create quick answer chain (2-3 sentences)
-        from langchain_core.prompts import ChatPromptTemplate
-        from langchain_core.runnables import RunnablePassthrough
-        from langchain_core.output_parsers import StrOutputParser
-        from src.helper import format_docs
+        def generate():
+            """Generator function for streaming response"""
+            try:
+                # Get relevant documents first
+                retrieved_docs = retriever.invoke(question)
+                
+                # Format context
+                from src.helper import format_docs
+                context = format_docs(retrieved_docs)
+                
+                # Create prompt
+                from langchain_core.prompts import ChatPromptTemplate
+                system_prompt = """You are an expert Medical Assistant with comprehensive knowledge of medical conditions, treatments, and healthcare.
+
+Your role is to provide detailed, accurate, and helpful answers based on the medical literature provided in the context.
+
+Guidelines for your responses:
+1. **Be Comprehensive**: Provide thorough explanations covering all relevant aspects
+2. **Be Structured**: Organize information logically (definition, causes, symptoms, treatment, etc.)
+3. **Be Clear**: Explain medical terms in understandable language
+4. **Be Accurate**: Only use information from the provided context
+5. **Be Helpful**: Anticipate follow-up questions and address them
+6. **Be Honest**: If information is missing from context, clearly state it
+
+Context from medical literature:
+{context}
+
+Provide a detailed, well-structured answer to the following question:"""
+
+                prompt = ChatPromptTemplate.from_messages([
+                    ("system", system_prompt),
+                    ("human", "{input}"),
+                ])
+                
+                # Format the prompt
+                formatted_prompt = prompt.format(context=context, input=question)
+                
+                # Stream the response
+                for chunk in chatModel.stream(formatted_prompt):
+                    if chunk.content:
+                        # Send each chunk as JSON
+                        yield f"data: {json.dumps({'chunk': chunk.content})}\n\n"
+                
+                # Send sources at the end
+                sources = [
+                    {
+                        'source': doc.metadata.get('source', 'Unknown'),
+                        'preview': doc.page_content[:200].replace('\n', ' ').strip()
+                    }
+                    for doc in retrieved_docs
+                ]
+                
+                yield f"data: {json.dumps({'sources': sources, 'done': True})}\n\n"
+                
+            except Exception as e:
+                yield f"data: {json.dumps({'error': str(e)})}\n\n"
         
-        quick_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are a medical assistant. Answer briefly in 2-3 sentences.\n\nContext: {context}"),
-            ("human", "{input}"),
-        ])
-        
-        quick_chain = (
-            {"context": retriever | format_docs, "input": RunnablePassthrough()}
-            | quick_prompt
-            | initialize_groq_llm(temperature=0.2, max_tokens=256)
-            | StrOutputParser()
+        return Response(
+            stream_with_context(generate()),
+            mimetype='text/event-stream',
+            headers={
+                'Cache-Control': 'no-cache',
+                'X-Accel-Buffering': 'no'
+            }
         )
-        
-        answer = quick_chain.invoke(question)
-        
-        return jsonify({
-            'answer': answer,
-            'question': question,
-            'mode': 'quick'
-        })
     
     except Exception as e:
+        print(f"❌ Error: {e}")
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
