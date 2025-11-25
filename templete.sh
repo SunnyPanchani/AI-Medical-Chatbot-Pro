@@ -4,6 +4,7 @@ mkdir -p research
 mkdir -p data
 mkdir -p templates
 mkdir -p static
+mkdir -p images
 
 
 # Creating file

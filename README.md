@@ -31,7 +31,13 @@ This project covers every part:
 
 ## 📸 Screenshots
 
-[Add your screenshots here]
+### Deployment Page
+![Deployment Screenshot](images/dp.png)
+
+### CI/CD Pipline
+![CI/CD Pipeline](images/gt.png)
+
+
 
 ---
 
