@@ -12,7 +12,7 @@ langchain-text-splitters==1.0.0
 
 # Web Framework
 flask==3.1.1
-pyreadline3==3.4.1
+
 
 
 # Streamlit UI
@@ -37,6 +37,6 @@ langchain-groq==1.0.1
 # langchain-openai==1.0.3
 
 
-
+pyreadline3==3.4.1
 # Install project as editable package
 -e .
